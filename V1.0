@@ -1,0 +1,179 @@
+local w = Library:CreateWindow("B Hub - Prison Life Script") -- Window for menu
+local mainTab = w:CreateTab("Main") -- Main tab for features
+local teleportTab = w:CreateTab("Teleport") -- Teleport tab
+local settingsTab = w:CreateTab("Settings") -- Settings tab for flight, noclip, etc.
+
+-- Variables for features
+local flightSpeed = 50
+local noclipActive = false
+local autoRespawn = false
+local softAimRadius = 50
+local killAuraActive = false
+local softAimFOV = 5 -- Field of view for soft aim (size of the soft aim circle)
+local lastPos = nil
+
+-- Function to remove walls, doors, fences (Environment Manipulation)
+function removeEnvironment()
+    for _, part in pairs(workspace:GetDescendants()) do
+        if part:IsA("BasePart") then
+            if part.Name == "Wall" or part.Name == "Door" or part.Name == "Fence" then
+                part:Destroy() -- or part.Transparency = 1 to make invisible
+            end
+        end
+    end
+end
+
+-- Teleport functions
+function teleportToPoliceRoom()
+    game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(Vector3.new(12, 6, -5)) -- Example coordinates for Police Room
+end
+
+function teleportToYard()
+    game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(Vector3.new(0, 5, 30)) -- Example coordinates for Yard
+end
+
+function teleportToPrison()
+    game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(Vector3.new(-100, 5, -100)) -- Example coordinates for Prison
+end
+
+function teleportToCriminalBase()
+    game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(Vector3.new(150, 5, 200)) -- Example coordinates for Criminal Base
+end
+
+-- Flight Function
+function startFlying(speed)
+    local player = game.Players.LocalPlayer
+    local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+    local bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.MaxForce = Vector3.new(100000, 100000, 100000)
+    bodyVelocity.Velocity = Vector3.new(0, speed, 0) -- Flight speed
+    bodyVelocity.Parent = player.Character:WaitForChild("HumanoidRootPart")
+end
+
+-- Noclip Function
+function toggleNoclip()
+    noclipActive = not noclipActive
+    local character = game.Players.LocalPlayer.Character
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+
+    if noclipActive then
+        humanoid.PlatformStand = true
+        while noclipActive do
+            character:Move(Vector3.new(0, 0, 0), true)
+            wait(0.1)
+        end
+    else
+        humanoid.PlatformStand = false
+    end
+end
+
+-- Auto Respawn Function
+function autoRespawn()
+    local player = game.Players.LocalPlayer
+    player.CharacterAdded:Connect(function()
+        if autoRespawn then
+            local lastPosition = player.Character.HumanoidRootPart.Position
+            player.Character:MoveTo(lastPosition)
+        end
+    end)
+end
+
+-- SoftAim: Aiming at closest enemy within a radius (adjusted to aim at head for effectiveness)
+function softAim()
+    local closestPlayer = nil
+    local minDistance = softAimRadius
+    for _, player in pairs(game.Players:GetPlayers()) do
+        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player ~= game.Players.LocalPlayer then
+            local distance = (player.Character.HumanoidRootPart.Position - game.Players.LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+            if distance < minDistance then
+                closestPlayer = player
+                minDistance = distance
+            end
+        end
+    end
+
+    -- Aim at the closest player
+    if closestPlayer then
+        local targetPosition = closestPlayer.Character.HumanoidRootPart.Position
+        game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(targetPosition)  -- Adjusted aiming logic to align with target
+    end
+end
+
+-- Kill Aura (Damaging players within a radius)
+function killAura()
+    for _, player in pairs(game.Players:GetPlayers()) do
+        if player.Character and player.Character:FindFirstChild("Humanoid") and player ~= game.Players.LocalPlayer then
+            -- Only kill players in a certain range and ensure no friendly fire
+            if (player.Character.HumanoidRootPart.Position - game.Players.LocalPlayer.Character.HumanoidRootPart.Position).Magnitude < softAimRadius then
+                local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+                if humanoid and humanoid.Health > 0 then
+                    -- Deal damage or attack (clicking on the target with the "ClickDetector" for example)
+                    humanoid.Health = 0  -- This will kill the player instantly
+                end
+            end
+        end
+    end
+end
+
+-- Equip M4A1 and Remington Shotgun
+function equipWeapons()
+    -- M4A1
+    local m4a1 = game.ReplicatedStorage:WaitForChild("Weapons"):FindFirstChild("M4A1")
+    local remington = game.ReplicatedStorage:WaitForChild("Weapons"):FindFirstChild("Remington")
+    if m4a1 then
+        m4a1:Clone().Parent = game.Players.LocalPlayer.Backpack
+    end
+    if remington then
+        remington:Clone().Parent = game.Players.LocalPlayer.Backpack
+    end
+end
+
+-- Create Menu Controls
+-- Removing Environment Toggle
+mainTab:AddButton("Remove Environment", removeEnvironment)
+
+-- Flight Speed Slider
+settingsTab:AddSlider("Flight Speed", 0, 100, flightSpeed, function(value)
+    flightSpeed = value
+end)
+
+-- Noclip Toggle
+settingsTab:AddToggle("Noclip", false, toggleNoclip)
+
+-- Auto Respawn Toggle
+settingsTab:AddToggle("Auto Respawn", false, function(value)
+    autoRespawn = value
+    if autoRespawn then
+        autoRespawn()
+    end
+end)
+
+-- Soft Aim Toggle
+settingsTab:AddToggle("Soft Aim", false, function(value)
+    while value do
+        softAim()
+        wait(0.1) -- Looping soft aim logic to continuously track nearest player
+    end
+end)
+
+-- Kill Aura Toggle
+settingsTab:AddToggle("Kill Aura", false, function(value)
+    killAuraActive = value
+    while killAuraActive do
+        killAura() -- Constantly checking for nearby enemies to kill
+        wait(0.1) -- Check every 0.1 seconds
+    end
+end)
+
+-- Equip Weapons Button
+mainTab:AddButton("Equip M4A1 & Remington", equipWeapons)
+
+-- Teleport Buttons
+teleportTab:AddButton("Teleport to Police Room", teleportToPoliceRoom)
+teleportTab:AddButton("Teleport to Yard", teleportToYard)
+teleportTab:AddButton("Teleport to Prison", teleportToPrison)
+teleportTab:AddButton("Teleport to Criminal Base", teleportToCriminalBase)
+
+-- Finalize the menu
+Library:Render()
+Key Enhancements:
